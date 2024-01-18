@@ -37,16 +37,35 @@ import { createRoot } from 'react-dom/client';
 
 const Home = ()=> <hr />;
 
-const Event = ({ events })=> {
+const Event = ({ events, updateEvent })=> {
+  const [name, setName] = React.useState('');
   const { id } = useParams();
   const event = events.find(event => event.id === id*1)
+
+  React.useEffect(()=> {
+    const event = events.find(event => event.id === id*1)
+    if(event){
+      setName(event.name);
+    }
+  }, [events, id]);
+
   if(!event){
     return null;
   }
+
+  const submit = (ev)=> {
+    ev.preventDefault();
+    updateEvent(id, name);
+  }
+
   return (
     <div>
       <h2>Event Detail</h2>
       <h3>{ event.name} @ { event.location }</h3>
+      <form onSubmit={ submit }>
+        <input placeholder='name' value={ name } onChange={ ev => setName(ev.target.value)}/>
+        <button disabled={ event.name === name }>Update</button>
+      </form>
       <Link to='/events'>All Events</Link>
     </div>
   );
@@ -96,27 +115,37 @@ const CreateEvent = ({ createEvent })=> {
 };
 
 const Events = ({ events, destroyEvent })=> {
+  const navigate = useNavigate();
+  const params = useParams();
+  const term = params.term || '';
   return (
-    <ul>
-      {
-        events.map((event)=> {
-          return (
-            <li key={ event.id }>
-              <Link to={`/events/${event.id}`}>
-                {
-                  event.name
-                }
-              </Link>
-              <button
-                onClick={ ()=> destroyEvent(event)}
-              >
-                delete
-              </button>
-            </li>
-          );
-        })
-      }
-    </ul>
+    <div>
+      <form>
+        <input value={ term } onChange={ ev => navigate(ev.target.value ? `/events/search/${ev.target.value}`: '/events')}/>
+      </form>
+      <ul>
+        {
+          events
+            .filter(event => !term || event.name.startsWith(term))
+            .map((event)=> {
+            return (
+              <li key={ event.id }>
+                <Link to={`/events/${event.id}`}>
+                  {
+                    event.name
+                  }
+                </Link>
+                <button
+                  onClick={ ()=> destroyEvent(event)}
+                >
+                  delete
+                </button>
+              </li>
+            );
+          })
+        }
+      </ul>
+    </div>
   );
 };
 
@@ -147,6 +176,21 @@ function App() {
     navigate(`/events/${json.data.id}`);
   };
 
+  const updateEvent = async(id, name)=> {
+    console.log(id, name);
+    const response = await fetch(`https://fsa-crud-2aa9294fe819.herokuapp.com/api/2309_ftb_et_web_am/events/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name }),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    const json = await response.json();
+    const updatedEvent = json.data;
+    const updatedEvents = events.map(event => event.id === updatedEvent.id ? updatedEvent: event);
+    setEvents(updatedEvents)
+  };
+
   const destroyEvent = async(event)=> {
     const response = await fetch(`https://fsa-crud-2aa9294fe819.herokuapp.com/api/2309_ftb_et_web_am/events/${event.id}`, {
       method: 'DELETE'
@@ -158,10 +202,10 @@ function App() {
   
   return (
     <div>
-      <h1>Acme Events CRD ({ events.length })</h1>
+      <h1>Acme Events CRUD ({ events.length })</h1>
       <nav>
         <Link to='/' className={ pathname === '/' ? 'selected': ''}>Home</Link>
-        <Link to='/events' className={ pathname === '/events' ? 'selected': ''}>Events ({ events.length })</Link>
+        <Link to='/events' className={ pathname.startsWith('/events') ? 'selected': ''}>Events ({ events.length })</Link>
         <Link to='/createEvent' className={ pathname === '/createEvent' ? 'selected': ''}>Create Event</Link>
       </nav>
       <Routes>
@@ -178,8 +222,12 @@ function App() {
           element={ <Events events={ events } destroyEvent={ destroyEvent }/> } 
         />
         <Route
+          path='/events/search/:term'
+          element={ <Events events={ events } destroyEvent={ destroyEvent }/> } 
+        />
+        <Route
           path='/events/:id'
-          element={ <Event events={ events } /> }
+          element={ <Event events={ events } updateEvent={ updateEvent }/> }
         />
       </Routes>
     </div>
